@@ -1,0 +1,194 @@
+//Thanks & Credit to rascode (Gist: gist.github.com/rascode) for the framework code for reading the data from the Spreadsheet (see: https://gist.github.com/rascode/5779341)
+var backshoreData = [];
+var foreshoreData = [];
+var nearshoreData = [];
+var offshoreData = [];
+var headerRow = [];
+
+var spreadsheet = SpreadsheetApp.getActive();
+var sheet = spreadsheet.getActiveSheet();
+var allSpreadsheetData = sheet.getDataRange().getValues();
+
+function initialDataGather() {
+  var spreadsheetInit = SpreadsheetApp.getActive();
+  spreadsheet = spreadsheetInit;
+  var sheetInit = spreadsheet.getActiveSheet();
+  sheet = sheetInit;
+  var allSpreadsheetDataInit = sheet.getDataRange().getValues();
+  allSpreadsheetData = allSpreadsheetDataInit;
+  var innerHeaderRow = allSpreadsheetData[0];
+  headerRow = innerHeaderRow;
+}
+
+function onOpen() {
+  initialDataGather();
+  var data = [];
+
+  //Proccesses all the spreadsheet data into shore areas.
+  for (var currentRow = 1; currentRow < allSpreadsheetData.length; currentRow++) {
+    obj = {};
+    switch (allSpreadsheetData[currentRow][1]) {
+      case "Backshore":
+        backshoreData.push(processRow(currentRow, headerRow));
+        break;
+      case "Foreshore":
+        foreshoreData.push(processRow(currentRow, headerRow));
+        break;
+      case "Nearshore":
+        nearshoreData.push(processRow(currentRow, headerRow));
+        break;
+      case "Offshore":
+        offshoreData.push(processRow(currentRow, headerRow));
+        break;
+      default:
+    }
+  }
+  //Sorts Row information into appropriate shore areas - runs at onOpen();
+  function processRow(row, headerRow){
+    var obj = {};
+    for (var rowColumn = 0; rowColumn < headerRow.length; rowColumn++) {
+        if(rowColumn < 5 || rowColumn > 12) {
+          obj[headerRow[rowColumn]] = allSpreadsheetData[row][rowColumn];
+      }
+      else if (rowColumn > 4 && rowColumn < 13) {
+        obj[headerRow[rowColumn]] = (allSpreadsheetData[row+1][rowColumn]).toFixed(2);
+      }
+    }
+    return obj
+  }
+
+
+  processTranscects("f");
+  processTranscects("b");
+  processTranscects("n");
+  processTranscects("o");
+}
+
+function processSedSize(dataSet, size) {
+  var stats = {
+    "size": "",
+    "mean": "",
+    "sd": "",
+  };
+
+  var num = 0;
+  var mean = 0;
+  stats["size"] = size;
+  for (i = 0; i < dataSet.length; i++) {
+    num += dataSet[i];
+  }
+
+  var mean = (num/(dataSet.length)).toFixed(2);
+
+  var sumsArray = [];
+  for (i = 0; i < dataSet.length; i++) {
+    sumsArray.push((dataSet[i] - mean).toFixed(2));
+  }
+
+  var totalSum = 0;
+  for (i = 0; i < sumsArray.length; i++) {
+    totalSum += Number(sumsArray[i] * sumsArray[i]);
+  }
+
+  var variance = ((1/(dataSet.length - 1)) * totalSum);
+  var sd = Math.sqrt(variance).toFixed(2);
+
+  stats["mean"] = mean;
+  stats["sd"] = sd;
+  return stats;
+}
+
+function processTranscects(dataName) {
+  var negThreePhi = [];
+  var negTwoPhi = [];
+  var negOnePhi = [];
+  var zeroPhi = [];
+  var onePhi = [];
+  var twoPhi = [];
+  var threePhi = [];
+  var fourPhi = [];
+  var transcectsArray = [negThreePhi, negTwoPhi, negOnePhi, zeroPhi, onePhi, twoPhi, threePhi, fourPhi];
+  var dataSet = [];
+  var processedSedDataArray = [];
+
+  switch (dataName) {
+    case "f":
+      dataSet = foreshoreData;
+      break;
+    case "b":
+      dataSet = backshoreData;
+      break;
+    case "n":
+      dataSet = nearshoreData;
+      break;
+    case "o":
+      dataSet = offshoreData;
+      break;
+    default:
+  }
+
+  for (var i = 0; i < 13; i++) {
+    var singlePiece = dataSet[i];
+    for (key in singlePiece) {
+      switch (key) {
+        case "-3Φ":
+          negThreePhi.push(Number(singlePiece["-3Φ"]));
+        break;
+        case "-2Φ":
+          negTwoPhi.push(Number(singlePiece["-2Φ"]));
+        break;
+        case "-1Φ":
+          negOnePhi.push(Number(singlePiece["-1Φ"]));
+          break;
+        case "0Φ":
+          zeroPhi.push(Number(singlePiece["0Φ"]));
+        break;
+        case "1Φ":
+          onePhi.push(Number(singlePiece["1Φ"]));
+        break;
+        case "2Φ":
+          twoPhi.push(Number(singlePiece["2Φ"]));
+        break;
+        case "3Φ":
+          threePhi.push(Number(singlePiece["3Φ"]));
+        break;
+        case "4Φ":
+          fourPhi.push(Number(singlePiece["4Φ"]));
+        break;
+        default:
+      }
+    }
+  }
+
+  var sheetName = "";
+  var sheetIndex = 0;
+  switch (dataName) {
+    case "f":
+      sheetName = "Foreshore";
+      sheetIndex = 2;
+      break;
+    case "b":
+      sheetName = "Backshore";
+      sheetIndex = 1;
+      break;
+    case "n":
+      sheetName = "Nearshore";
+      sheetIndex = 3;
+      break;
+    case "o":
+      sheetName = "Offshore";
+      sheetIndex = 4;
+      break;
+    default:
+  }
+
+  if (spreadsheet.getSheetByName(sheetName) == null) {
+    spreadsheet.insertSheet(sheetName, sheetIndex);
+    var newSheet = spreadsheet.getSheetByName(sheetName);
+    for (i = 0; i < transcectsArray.length; i++) {
+      var test = processSedSize(transcectsArray[i], headerRow[i+5]);
+      processedSedDataArray.push(test);
+      newSheet.appendRow([test["size"], 'Mean: (g)', test["mean"], 'SD: (g)', test["sd"]]);
+    }
+  }
+}
